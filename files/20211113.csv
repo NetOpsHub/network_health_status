@@ -1,0 +1,5 @@
+Hostname,IP,CPU Usage,Memory Usage,Device Uptime
+NR01,10.0.254.211,8,7.50868502599568,1 hour, 12 minutes
+NR02,10.0.254.212,8,7.5086780036598455,1 hour, 12 minutes
+NR03,10.0.254.213,8,7.508683621528514,1 hour, 12 minutes
+SW01,10.0.254.210,23,7.231635701673721,1 hour, 10 minutes

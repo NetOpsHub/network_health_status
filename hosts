@@ -1,0 +1,15 @@
+
+[network_router_group]
+
+NR01 ansible_host=10.0.254.211
+NR02 ansible_host=10.0.254.212
+NR03 ansible_host=10.0.254.213
+
+[network_switch_group]
+
+SW01 ansible_host=10.0.254.210
+
+[network_device_group:children]
+
+network_router_group
+network_switch_group

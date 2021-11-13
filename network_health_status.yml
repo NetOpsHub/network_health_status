@@ -1,0 +1,82 @@
+
+- name: prepare directory to store log files
+  hosts: all
+  strategy: linear
+  
+  tasks:
+    - name: prepare directory to store log files
+      file:
+        path: files/{{'%Y%m%d' | strftime}}
+        state: directory
+      when: not ("files/{{'%Y%m%d' | strftime}}" is exists)
+      run_once: yes
+      delegate_to: localhost
+      tags:
+        - always
+
+- name: collect network device's health status
+  hosts: all
+  strategy: linear
+  
+  tasks:        
+    - name: collect network device's health status
+      ios_command:
+        commands:
+          - show processes cpu sorted
+          - show memory summary
+          - show version
+      register: device_health_results
+      when: (ansible_network_os is eq("ios"))
+      tags:
+        - device_health_status
+    
+    # CPU utilization for five seconds: 19%/0%; one minute: 14%; five minutes: 12%
+    
+    # "{{device_health_results.stdout.0 | regex_search('.+:\\s(\\d+).+:\\s(\\d+).+:\\s(\\d+)', '\\1', '\\2', '\\3', ignorecase=true)}}"
+    
+    # NR01#show memory summary
+                    # Head    Total(b)     Used(b)     Free(b)   Lowest(b)  Largest(b)
+    # Processor    CF68754   854416556    64052584   790363972   777361912   777141508
+          # I/O    9268754    63963136    52718488    11244648    11212064    11090512
+          
+    # "{{device_health_results.stdout.1 | regex_search('processor\\s+[\\w\\d]+\\s+(\\d+)\\s+(\\d+).+', '\\1', '\\2', ignorecase=true)}}"
+    
+    # NR01 uptime is 17 minutes
+    
+    # "{{device_health_results.stdout.2 | regex_search('.+uptime\\sis\\s(.+)', '\\1', ignorecase=true)}}"
+    
+    - name: create facts based on device's health results
+      set_fact:
+        cpu_health_results: "{{device_health_results.stdout.0 | regex_search('.+:\\s(\\d+).+:\\s(\\d+).+:\\s(\\d+)', '\\1', '\\2', '\\3', ignorecase=true)}}"
+        memory_health_results: "{{device_health_results.stdout.1 | regex_search('processor\\s+[\\w\\d]+\\s+(\\d+)\\s+(\\d+).+', '\\1', '\\2', ignorecase=true)}}"
+        uptime_health_results: "{{device_health_results.stdout.2 | regex_search('.+uptime\\sis\\s(.+)', '\\1', ignorecase=true)}}"
+      when: (ansible_network_os is eq("ios"))
+      tags:
+        - device_health_status
+        
+    # "{{(memory_health_results.1 | int / memory_health_results.0 | int)*100}}"
+    
+    - name: copy device's health results into log files
+      template:
+        src: templates/network_health_status.j2
+        dest: files/{{'%Y%m%d' | strftime}}/{{inventory_hostname}}.health
+      when: (ansible_network_os is eq("ios"))
+      delegate_to: localhost
+      tags:
+        - device_health_status
+
+- name: consolidate device health's status into report files
+  hosts: localhost
+  strategy: linear
+  
+  tasks:
+    - name: consolidate device health's status into report files
+      shell: "{{item}}"
+      with_items:
+        - echo "Hostname,IP,CPU Usage,Memory Usage,Device Uptime" > files/{{'%Y%m%d' | strftime}}.csv
+        - cat files/{{'%Y%m%d' | strftime}}/*.health >> files/{{'%Y%m%d' | strftime}}.csv
+      when: ("files/{{'%Y%m%d' | strftime}}" is exists)
+      run_once: yes
+      delegate_to: localhost
+      tags:
+        - always
